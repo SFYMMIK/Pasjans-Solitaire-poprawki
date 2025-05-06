@@ -23,3 +23,6 @@ g++ solitaire.cpp -o solitaire -std=c++17
 > lecz ten kod jest oryginalnie cały napisany przezemnie z inspiracją bazowaną na jego kodzie
 > aby mu pokazać jak ja bym to zrobił
 ### jak zkompilować kod
+```sh
+g++ solitaire.cpp -o solitaire -std=c++17
+```
