@@ -11,7 +11,7 @@
 > but this code is my whole original code which just to show him how i would do it.
 ### how to compile:
 ```sh
-g++ solitaire.cpp -o solitaire -std=c++17
+g++ Main.cpp -o solitaire -std=c++17
 ```
 
 # Polska Część readme:
@@ -24,5 +24,5 @@ g++ solitaire.cpp -o solitaire -std=c++17
 > aby mu pokazać jak ja bym to zrobił
 ### jak zkompilować kod
 ```sh
-g++ solitaire.cpp -o solitaire -std=c++17
+g++ Main.cpp -o solitaire -std=c++17
 ```
