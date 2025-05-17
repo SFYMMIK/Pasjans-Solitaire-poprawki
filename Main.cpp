@@ -1,86 +1,124 @@
-#include <iostream>
-#include <vector>
-#include <algorithm>
-#include <random>
+#include <bits/stdc++.h>
 using namespace std;
-
-enum Kolor { Kier, Karo, Trefl, Pik };
-string symbolKoloru[] = {"♥", "♦", "♣", "♠"};
+enum SymbolKoloru { Kier, Karo, Trefl, Pik };
+enum KolorWizualny { Czerwony, Czarny };
 
 struct Karta {
-    int wartosc;
-    Kolor kolor;
-    bool odkryta;
-
-    Karta(int w, Kolor k, bool o = false) : wartosc(w), kolor(k), odkryta(o) {}
-
-    string tekst() const {
-        if (!odkryta) return "[?]";
-        string w[] = {"", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
-        return w[wartosc] + symbolKoloru[kolor];
-    }
+  int wartosc;
+  SymbolKoloru kolor;
+  bool odkryta;
+  Karta(int w, SymbolKoloru k, bool o = false) : wartosc(w), kolor(k), odkryta(o) {}
+  KolorWizualny wizualny() const { return (kolor == Kier || kolor == Karo) ? Czerwony : Czarny; }
+  string tekst() const {
+    if (!odkryta) return "[?]";
+    string w[] = {"", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"};
+    string s[] = {"♥", "♦", "♣", "♠"};
+    return w[wartosc] + s[kolor];
+  }
 };
 
-using Stos = vector<Karta>;
+struct Stos {
+  vector<Karta> k;
+  bool pusty() const { return k.empty(); }
+  int rozmiar() const { return k.size(); }
+  Karta& wierzch() { static Karta fake(0, Kier); return pusty() ? fake : k.back(); }
+  void dodaj(const Karta& a) { k.push_back(a); }
+  void dodajWiele(const vector<Karta>& v) { k.insert(k.end(), v.begin(), v.end()); }
+  void usun() { if (!pusty()) k.pop_back(); }
+  void odkryj() { if (!pusty()) k.back().odkryta = true; }
+  Karta pobierz() { auto a = wierzch(); usun(); return a; }
+  vector<Karta> pobierzOd(int i) { vector<Karta> out(k.begin() + i, k.end()); k.erase(k.begin() + i, k.end()); return out; }
+  void wyczysc() { k.clear(); }
+  bool moznaNa(const Karta& a) const {
+    if (pusty()) return a.wartosc == 13;
+    const Karta& top = k.back();
+    return top.wartosc == a.wartosc + 1 && top.wizualny() != a.wizualny();
+  }
+};
 
-vector<Karta> stworzTalie() {
-    vector<Karta> talia;
-    for (int k = 0; k < 4; ++k)
-        for (int w = 1; w <= 13; ++w)
-            talia.emplace_back(w, static_cast<Kolor>(k));
-    shuffle(talia.begin(), talia.end(), mt19937(random_device{}()));
-    return talia;
-}
+struct StanGry {
+  vector<Stos> kolumny, koncowe;
+  Stos rezerwowy, odrzucone;
+};
 
-void pokazKolumny(const vector<Stos>& kolumny) {
-    cout << "\nKolumny:\n";
-    for (size_t i = 0; i < kolumny.size(); ++i) {
-        cout << i+1 << ": ";
-        for (const auto& k : kolumny[i])
-            cout << k.tekst() << " ";
-        cout << "\n";
+struct Gra {
+  vector<Karta> talia;
+  vector<Stos> kolumny = vector<Stos>(7), koncowe = vector<Stos>(4);
+  Stos rezerwowy, odrzucone;
+  stack<StanGry> historia;
+  chrono::high_resolution_clock::time_point start;
+
+  void zapisz() { historia.push({kolumny, koncowe, rezerwowy, odrzucone}); }
+  void cofnij() {
+    if (historia.empty()) return void(cout << "Brak historii\n");
+    auto s = historia.top(); historia.pop();
+    kolumny = s.kolumny; koncowe = s.koncowe;
+    rezerwowy = s.rezerwowy; odrzucone = s.odrzucone;
+    cout << "Cofnięto ruch\n";
+  }
+  void stworzTalie() {
+    for (int i = 0; i < 4; ++i) for (int j = 1; j <= 13; ++j) talia.emplace_back(j, (SymbolKoloru)i);
+  }
+  void tasuj() {
+    mt19937 r(random_device{}());
+    shuffle(talia.begin(), talia.end(), r);
+  }
+  void rozpocznij() {
+    start = chrono::high_resolution_clock::now();
+    stworzTalie(); tasuj();
+    for (int i = 0; i < 7; ++i) {
+      for (int j = 0; j <= i; ++j) kolumny[i].dodaj(talia.back()), talia.pop_back();
+      kolumny[i].odkryj();
     }
-}
+    while (!talia.empty()) rezerwowy.dodaj(talia.back()), talia.pop_back();
+  }
+  void wyswietl() {
+    cout << "\n♥/♦ czerwone, ♣/♠ czarne\n";
+    cout << "Rezerwowy: " << (rezerwowy.pusty() ? "[ ]" : "[?]");
+    cout << "   Odrzucone: " << (odrzucone.pusty() ? "[ ]" : odrzucone.wierzch().tekst());
+    cout << "   Końcowe: ";
+    for (auto& s : koncowe) cout << (s.pusty() ? "[ ] " : s.wierzch().tekst() + " ");
+    cout << "\n\nKolumny:\n";
+    for (int i = 0; i < 7; ++i) {
+      cout << "Kolumna " << i + 1 << ": ";
+      for (auto& k : kolumny[i].k) cout << k.tekst() << ' ';
+      cout << '\n';
+    }
+  }
+  void dobierz() {
+    zapisz();
+    if (rezerwowy.pusty()) return void(cout << "Pusty stos\n");
+    rezerwowy.odkryj();
+    odrzucone.dodaj(rezerwowy.pobierz());
+  }
+  bool wygrana() {
+    return all_of(koncowe.begin(), koncowe.end(), [](Stos& s) { return s.rozmiar() == 13; });
+  }
+  bool przegrana() {
+    if (!rezerwowy.pusty() || !odrzucone.pusty()) return false;
+    for (auto& kol : kolumny) for (auto& k : kol.k) if (!k.odkryta) return false;
+    return true;
+  }
+};
 
 int main() {
-    auto talia = stworzTalie();
-    vector<Stos> kolumny(7);
-
-    // Rozdaj karty do kolumn
-    for (int i = 0; i < 7; ++i)
-        for (int j = 0; j <= i; ++j) {
-            kolumny[i].push_back(talia.back());
-            talia.pop_back();
-        }
-    for (auto& k : kolumny)
-        k.back().odkryta = true;
-
-    // Główna pętla
-    while (true) {
-        pokazKolumny(kolumny);
-        cout << "\nPodaj numer kolumny źródłowej i docelowej (0 aby zakończyć): ";
-        int z, d;
-        cin >> z >> d;
-        if (z == 0 || d == 0) break;
-        if (--z < 0 || z > 6 || --d < 0 || d > 6 || kolumny[z].empty()) continue;
-
-        Karta karta = kolumny[z].back();
-        if (kolumny[d].empty() && karta.wartosc == 13) {
-            kolumny[d].push_back(karta);
-            kolumny[z].pop_back();
-        } else if (!kolumny[d].empty()) {
-            Karta cel = kolumny[d].back();
-            if ((karta.kolor == Kier || karta.kolor == Karo) != (cel.kolor == Kier || cel.kolor == Karo)
-                && karta.wartosc + 1 == cel.wartosc) {
-                kolumny[d].push_back(karta);
-                kolumny[z].pop_back();
-            }
-        }
-
-        if (!kolumny[z].empty())
-            kolumny[z].back().odkryta = true;
+  Gra g; g.rozpocznij();
+  while (true) {
+    g.wyswietl();
+    if (g.wygrana()) {
+      cout << "Gratulacje! Wygrałeś!\n";
+      break;
     }
-
-    cout << "Koniec gry.\n";
-    return 0;
+    if (g.przegrana()) {
+      cout << "Brak możliwych ruchów. Przegrałeś.\n";
+      break;
+    }
+    cout << "\n1. Dobierz | 9. Cofnij | 0. Wyjście\nWybór: ";
+    int w; cin >> w;
+    if (w == 1) g.dobierz();
+    else if (w == 9) g.cofnij();
+    else if (w == 0) break;
+  }
+  auto czas = chrono::duration_cast<chrono::seconds>(chrono::high_resolution_clock::now() - g.start).count();
+  cout << "Czas gry: " << czas / 60 << "m " << czas % 60 << "s\n";
 }
